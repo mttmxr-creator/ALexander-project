@@ -11,6 +11,7 @@ class DeepSeekChat {
         this.loadChatHistory();
         this.setupEventListeners();
         this.setWelcomeTime();
+        this.addTestButton();
     }
 
     // Initialize DOM elements
@@ -33,6 +34,21 @@ class DeepSeekChat {
             resetSettings: document.getElementById('resetSettings'),
             closeSettings: document.getElementById('closeSettings')
         };
+    }
+
+    // Add test button to header
+    addTestButton() {
+        const headerControls = document.querySelector('.header-controls');
+        if (headerControls) {
+            const testButton = document.createElement('button');
+            testButton.className = 'theme-toggle';
+            testButton.innerHTML = '🧪';
+            testButton.setAttribute('aria-label', 'Test API Connection');
+            testButton.title = 'Test API Connection';
+            testButton.addEventListener('click', () => this.testApiConnection());
+            
+            headerControls.insertBefore(testButton, headerControls.firstChild);
+        }
     }
 
     // Detect API URL automatically
@@ -169,6 +185,42 @@ class DeepSeekChat {
         });
     }
 
+    // Test API connection
+    async testApiConnection() {
+        console.log('🧪 Testing API connection...');
+        console.log('📍 API URL:', this.apiUrl);
+        
+        try {
+            const response = await fetch(`${this.apiUrl}/health`);
+            console.log('📡 Health check response:', response);
+            
+            if (response.ok) {
+                const data = await response.json();
+                console.log('✅ API is healthy:', data);
+                this.showToast('✅ API подключение успешно!', 'success');
+                
+                // Show detailed info
+                alert(`API Status: ${data.status}\nBase loaded: ${data.b1c_base_loaded}\nPrompt manager: ${data.prompt_manager_ready}\nDeepSeek client: ${data.deepseek_client_ready}`);
+            } else {
+                console.error('❌ API health check failed:', response.status, response.statusText);
+                this.showToast(`❌ API ошибка: ${response.status} ${response.statusText}`, 'error');
+            }
+        } catch (error) {
+            console.error('❌ API connection error:', error);
+            this.showToast(`❌ Ошибка подключения: ${error.message}`, 'error');
+            
+            // Detailed error analysis
+            if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+                console.log('🔍 Это CORS или сеть ошибка');
+                if (this.apiUrl.includes('localhost')) {
+                    console.log('💡 Проверьте, что backend запущен на localhost:8000');
+                } else {
+                    console.log('💡 Проверьте, что backend развернут и доступен');
+                }
+            }
+        }
+    }
+
     // Send message to API
     async sendMessage() {
         const message = this.elements.messageInput.value.trim();
@@ -185,15 +237,42 @@ class DeepSeekChat {
         this.showLoading();
 
         try {
+            console.log('📤 Sending message to API:', this.apiUrl);
+            
             if (this.isStreaming) {
                 await this.streamResponse(message);
             } else {
                 await this.getResponse(message);
             }
         } catch (error) {
-            console.error('Error sending message:', error);
-            this.showToast(`Ошибка: ${error.message}`, 'error');
-            this.addMessage('assistant', 'Извините, произошла ошибка при обработке вашего запроса. Попробуйте еще раз.');
+            console.error('❌ Error sending message:', error);
+            
+            // Detailed error analysis
+            let errorMessage = 'Неизвестная ошибка';
+            let errorType = 'error';
+            
+            if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+                if (this.apiUrl.includes('localhost')) {
+                    errorMessage = 'Backend не запущен. Запустите python main.py на localhost:8000';
+                } else {
+                    errorMessage = 'Backend недоступен. Проверьте https://alexander-ai.onrender.com/health';
+                }
+                errorType = 'warning';
+            } else if (error.message.includes('CORS')) {
+                errorMessage = 'CORS ошибка. Backend не разрешает запросы с этого домена';
+                errorType = 'error';
+            } else if (error.message.includes('401')) {
+                errorMessage = 'API ключ не настроен. Проверьте DEEPSEEK_API_KEY на Render';
+                errorType = 'error';
+            } else if (error.message.includes('500')) {
+                errorMessage = 'Ошибка сервера. Проверьте логи backend';
+                errorType = 'error';
+            } else {
+                errorMessage = `Ошибка: ${error.message}`;
+            }
+            
+            this.showToast(errorMessage, errorType);
+            this.addMessage('assistant', `Извините, произошла ошибка при обработке вашего запроса: ${errorMessage}`);
         } finally {
             this.hideLoading();
         }
@@ -201,6 +280,8 @@ class DeepSeekChat {
 
     // Get streaming response
     async streamResponse(message) {
+        console.log('📡 Starting streaming request...');
+        
         const response = await fetch(`${this.apiUrl}/chat`, {
             method: 'POST',
             headers: {
@@ -212,7 +293,11 @@ class DeepSeekChat {
             })
         });
 
+        console.log('📡 Streaming response status:', response.status);
+
         if (!response.ok) {
+            const errorText = await response.text();
+            console.error('❌ Streaming response error:', response.status, errorText);
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
 
@@ -248,10 +333,13 @@ class DeepSeekChat {
         this.saveChatHistory();
 
         this.currentStreamingMessage = null;
+        console.log('✅ Streaming completed, total response length:', fullResponse.length);
     }
 
     // Get regular response
     async getResponse(message) {
+        console.log('📡 Starting regular request...');
+        
         const response = await fetch(`${this.apiUrl}/chat`, {
             method: 'POST',
             headers: {
@@ -263,11 +351,16 @@ class DeepSeekChat {
             })
         });
 
+        console.log('📡 Regular response status:', response.status);
+
         if (!response.ok) {
+            const errorText = await response.text();
+            console.error('❌ Regular response error:', response.status, errorText);
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
 
         const data = await response.json();
+        console.log('📡 Response data:', data);
         
         if (data.success) {
             this.addMessage('assistant', data.response);
@@ -490,7 +583,7 @@ class DeepSeekChat {
         this.updateSendButton();
         this.scrollToBottom();
         
-        // Test API connection
+        // Test API connection on startup
         this.testApiConnection();
     }
 
@@ -499,12 +592,12 @@ class DeepSeekChat {
         try {
             const response = await fetch(`${this.apiUrl}/health`);
             if (response.ok) {
-                console.log('API connection successful');
+                console.log('✅ API connection successful');
             } else {
-                console.warn('API connection failed');
+                console.warn('⚠️ API connection failed');
             }
         } catch (error) {
-            console.warn('API connection failed:', error);
+            console.warn('⚠️ API connection failed:', error);
         }
     }
 }
