@@ -11,11 +11,27 @@ class JavaScriptBackend {
         try {
             console.log('🚀 Инициализация JavaScript Backend...');
             
-            // Загружаем базу знаний (будет встроена в HTML)
+            // Загружаем базу знаний из HTML
             this.baseKnowledge = window.BASE_KNOWLEDGE || '';
+            console.log('📚 База знаний загружена:', this.baseKnowledge.length, 'символов');
             
             // Загружаем системный промпт
             this.systemPrompt = window.SYSTEM_PROMPT || 'Ты полезный AI ассистент.';
+            console.log('🧠 Системный промпт загружен:', this.systemPrompt.length, 'символов');
+            
+            // Если база знаний пустая, загружаем из файла
+            if (!this.baseKnowledge || this.baseKnowledge.length < 1000) {
+                console.log('⚠️ База знаний пустая, загружаю из файла...');
+                try {
+                    const response = await fetch('./knowledge_base.txt');
+                    if (response.ok) {
+                        this.baseKnowledge = await response.text();
+                        console.log('📚 База знаний загружена из файла:', this.baseKnowledge.length, 'символов');
+                    }
+                } catch (error) {
+                    console.error('❌ Ошибка загрузки базы знаний:', error);
+                }
+            }
             
             // Создаем менеджер промптов
             this.promptManager = new PromptManager();
@@ -24,6 +40,9 @@ class JavaScriptBackend {
             
             this.isInitialized = true;
             console.log('✅ JavaScript Backend инициализирован');
+            console.log('📊 Итоговые размеры:');
+            console.log('  - База знаний:', this.baseKnowledge.length, 'символов');
+            console.log('  - Системный промпт:', this.systemPrompt.length, 'символов');
             
         } catch (error) {
             console.error('❌ Ошибка инициализации backend:', error);
