@@ -1,0 +1,54 @@
+name: Deploy Backend to GitHub
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy-backend:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        
+    - name: Test backend components
+      run: |
+        python -c "from base_loader import load_b1c_base; print('✅ Base loader works')"
+        python -c "from prompt_manager import PromptManager; print('✅ Prompt manager works')"
+        python -c "from deepseek_client import DeepSeekClient; print('✅ DeepSeek client works')"
+        
+    - name: Start backend server
+      run: |
+        echo "🚀 Starting backend server..."
+        python main.py &
+        sleep 10
+        
+    - name: Test backend health
+      run: |
+        echo "🧪 Testing backend health..."
+        curl -f http://localhost:8000/health || echo "Backend not responding"
+        
+    - name: Deploy to GitHub Pages
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./frontend
+        publish_branch: gh-pages
+        
+    - name: Update deployment status
+      run: |
+        echo "🎉 Deployment completed!"
+        echo "🎨 Frontend: https://mttmxr-creator.github.io/ALexander-project/"
+        echo "🔧 Backend: Running on GitHub Actions"

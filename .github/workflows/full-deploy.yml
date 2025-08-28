@@ -1,0 +1,63 @@
+name: Full Deploy to GitHub
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        
+    - name: Test backend components
+      run: |
+        echo "🧪 Testing backend components..."
+        python -c "from base_loader import load_b1c_base; print('✅ Base loader works')"
+        python -c "from prompt_manager import PromptManager; print('✅ Prompt manager works')"
+        python -c "from deepseek_client import DeepSeekClient; print('✅ DeepSeek client works')"
+        
+    - name: Deploy to GitHub Pages
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./frontend
+        publish_branch: gh-pages
+        
+    - name: Create deployment summary
+      run: |
+        echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "✅ **Backend Components Tested:**" >> $GITHUB_STEP_SUMMARY
+        echo "- Base loader: Working" >> $GITHUB_STEP_SUMMARY
+        echo "- Prompt manager: Working" >> $GITHUB_STEP_SUMMARY
+        echo "- DeepSeek client: Working" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "🌐 **Frontend Deployed:**" >> $GITHUB_STEP_SUMMARY
+        echo "- URL: https://mttmxr-creator.github.io/ALexander-project/" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "🔑 **Next Steps:**" >> $GITHUB_STEP_SUMMARY
+        echo "1. Set DEEPSEEK_API_KEY in GitHub Secrets" >> $GITHUB_STEP_SUMMARY
+        echo "2. Test the application" >> $GITHUB_STEP_SUMMARY
+        
+    - name: Update README with deployment info
+      run: |
+        echo "" >> README.md
+        echo "## 🚀 Deployment Status" >> README.md
+        echo "" >> README.md
+        echo "**Last deployed:** $(date)" >> README.md
+        echo "**Frontend:** https://mttmxr-creator.github.io/ALexander-project/" >> README.md
+        echo "**Status:** Ready for API key configuration" >> README.md

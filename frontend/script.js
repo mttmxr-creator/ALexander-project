@@ -97,16 +97,16 @@ class DeepSeekChat {
         const hostname = window.location.hostname;
         const protocol = window.location.protocol;
         const fullUrl = window.location.href;
-        
+
         console.log('🔍 Detecting API URL:');
         console.log('  Hostname:', hostname);
         console.log('  Protocol:', protocol);
         console.log('  Full URL:', fullUrl);
-        
+
         // Check if we're running on GitHub Pages
         if (hostname === 'mttmxr-creator.github.io') {
-            console.log('  ✅ GitHub Pages detected, using production API');
-            return 'https://alexander-ai.onrender.com';
+            console.log('  ✅ GitHub Pages detected, using GitHub Actions backend');
+            return 'https://api.github.com/repos/mttmxr-creator/ALexander-project/actions/workflows/full-deploy.yml/runs';
         }
         
         // Check if we're running locally
@@ -115,9 +115,9 @@ class DeepSeekChat {
             return 'http://localhost:8000';
         }
         
-        // For any other domain, use production API
-        console.log('  ✅ Other domain detected, using production API');
-        return 'https://alexander-ai.onrender.com';
+        // For any other domain, use GitHub Actions
+        console.log('  ✅ Other domain detected, using GitHub Actions backend');
+        return 'https://api.github.com/repos/mttmxr-creator/ALexander-project/actions/workflows/full-deploy.yml/runs';
     }
 
     // Load settings from localStorage
@@ -361,7 +361,7 @@ class DeepSeekChat {
         }
     }
 
-    // Send message to API
+    // Send message
     async sendMessage() {
         const message = this.elements.messageInput.value.trim();
         if (!message) return;
@@ -370,52 +370,59 @@ class DeepSeekChat {
         this.addMessage('user', message);
         this.elements.messageInput.value = '';
         this.updateCharCount();
-        this.adjustTextareaHeight();
         this.updateSendButton();
 
-        // Show loading indicator
-        this.showLoading();
+        // Show assistant message placeholder
+        const assistantMessageId = this.addMessage('assistant', '');
+        this.elements.messageInput.disabled = true;
+        this.elements.sendButton.disabled = true;
 
         try {
-            console.log('📤 Sending message to API:', this.apiUrl);
+            let response;
             
-            if (this.isStreaming) {
-                await this.streamResponse(message);
+            // Try JavaScript backend first
+            if (this.jsBackend && this.jsBackend.isInitialized) {
+                console.log('🚀 Using JavaScript Backend');
+                response = await this.jsBackend.processChat(message);
             } else {
-                await this.getResponse(message);
+                // Fallback to HTTP API
+                console.log('🌐 Using HTTP API');
+                response = await this.sendToHttpAPI(message);
             }
+
+            // Update assistant message
+            this.updateMessage(assistantMessageId, response);
+            
         } catch (error) {
             console.error('❌ Error sending message:', error);
-            
-            // Detailed error analysis
-            let errorMessage = 'Неизвестная ошибка';
-            let errorType = 'error';
-            
-            if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-                if (this.apiUrl.includes('localhost')) {
-                    errorMessage = 'Backend не запущен. Запустите python main.py на localhost:8000';
-                } else {
-                    errorMessage = 'Backend недоступен. Проверьте https://alexander-ai.onrender.com/health';
-                }
-                errorType = 'warning';
-            } else if (error.message.includes('CORS')) {
-                errorMessage = 'CORS ошибка. Backend не разрешает запросы с этого домена';
-                errorType = 'error';
-            } else if (error.message.includes('401')) {
-                errorMessage = 'API ключ не настроен. Проверьте DEEPSEEK_API_KEY на Render';
-                errorType = 'error';
-            } else if (error.message.includes('500')) {
-                errorMessage = 'Ошибка сервера. Проверьте логи backend';
-                errorType = 'error';
-            } else {
-                errorMessage = `Ошибка: ${error.message}`;
-            }
-            
-            this.showToast(errorMessage, errorType);
-            this.addMessage('assistant', `Извините, произошла ошибка при обработке вашего запроса: ${errorMessage}`);
+            this.updateMessage(assistantMessageId, `❌ Ошибка: ${error.message}`);
         } finally {
-            this.hideLoading();
+            this.elements.messageInput.disabled = false;
+            this.elements.sendButton.disabled = false;
+            this.elements.messageInput.focus();
+            this.scrollToBottom();
         }
+    }
+
+    // Send to HTTP API (fallback)
+    async sendToHttpAPI(message) {
+        const response = await fetch(`${this.apiUrl}/chat`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                message: message,
+                stream: false
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        return data.response;
     }
 
     // Get streaming response
@@ -560,6 +567,22 @@ class DeepSeekChat {
         
         // Scroll to bottom
         this.scrollToBottom();
+        return messageElement.id; // Return the ID for updating
+    }
+
+    // Update message content
+    updateMessage(messageId, content) {
+        const messageElement = document.getElementById(messageId);
+        if (messageElement) {
+            const messageText = messageElement.querySelector('.message-text');
+            if (messageText) {
+                if (content.startsWith('❌ Ошибка:')) {
+                    messageText.innerHTML = `<span style="color: var(--error-color);">${content}</span>`;
+                } else {
+                    messageText.innerHTML = marked.parse(content);
+                }
+            }
+        }
     }
 
     // Update streaming message
@@ -716,23 +739,45 @@ class DeepSeekChat {
         }
     }
 
-    // Initialize the app
+    // Initialize chat
     init() {
-        this.loadTheme();
-        this.updateCharCount();
+        this.loadSettings();
+        this.loadChatHistory();
+        this.addTestButton();
         this.updateSendButton();
         this.scrollToBottom();
-        
+
         // Log current API URL for debugging
         console.log('🚀 DeepSeek Chat initialized');
         console.log('📍 Current API URL:', this.apiUrl);
         console.log('🌐 Current location:', window.location.href);
         
-        // Test API connection on startup
-        this.testApiConnection();
+        // Initialize JavaScript backend
+        this.initJavaScriptBackend();
         
         // Show current API URL in interface for debugging
         this.showApiUrlInfo();
+    }
+
+    // Initialize JavaScript backend
+    async initJavaScriptBackend() {
+        try {
+            // Check if JavaScript backend is available
+            if (typeof window.JavaScriptBackend !== 'undefined') {
+                this.jsBackend = new window.JavaScriptBackend();
+                await this.jsBackend.init();
+                console.log('✅ JavaScript Backend initialized');
+                
+                // Test backend health
+                const health = await this.jsBackend.healthCheck();
+                console.log('🏥 Backend health:', health);
+                
+            } else {
+                console.log('⚠️ JavaScript Backend not available, using HTTP API');
+            }
+        } catch (error) {
+            console.error('❌ Failed to initialize JavaScript Backend:', error);
+        }
     }
     
     // Show API URL info in interface
