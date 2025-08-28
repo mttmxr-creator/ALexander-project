@@ -40,6 +40,7 @@ class DeepSeekChat {
     addTestButton() {
         const headerControls = document.querySelector('.header-controls');
         if (headerControls) {
+            // Test API button
             const testButton = document.createElement('button');
             testButton.className = 'theme-toggle';
             testButton.innerHTML = '🧪';
@@ -47,8 +48,48 @@ class DeepSeekChat {
             testButton.title = 'Test API Connection';
             testButton.addEventListener('click', () => this.testApiConnection());
             
+            // API Mode toggle button
+            const apiModeButton = document.createElement('button');
+            apiModeButton.className = 'theme-toggle';
+            apiModeButton.innerHTML = this.apiUrl.includes('localhost') ? '🏠' : '☁️';
+            apiModeButton.setAttribute('aria-label', 'Toggle API Mode');
+            apiModeButton.title = `Current: ${this.apiUrl.includes('localhost') ? 'Local' : 'Production'} API`;
+            apiModeButton.addEventListener('click', () => this.toggleApiMode());
+            
+            headerControls.insertBefore(apiModeButton, headerControls.firstChild);
             headerControls.insertBefore(testButton, headerControls.firstChild);
         }
+    }
+    
+    // Toggle between local and production API
+    toggleApiMode() {
+        const currentMode = this.apiUrl.includes('localhost') ? 'local' : 'production';
+        const newMode = currentMode === 'local' ? 'production' : 'local';
+        
+        if (newMode === 'local') {
+            this.apiUrl = 'http://localhost:8000';
+            localStorage.setItem('deepseek_api_mode', 'local');
+            this.elements.apiUrlInput.value = this.apiUrl;
+            this.showToast('🏠 Переключено на локальный API', 'success');
+        } else {
+            this.apiUrl = 'https://alexander-ai.onrender.com';
+            localStorage.setItem('deepseek_api_mode', 'production');
+            this.elements.apiUrlInput.value = this.apiUrl;
+            this.showToast('☁️ Переключено на продакшн API', 'success');
+        }
+        
+        // Update button icon
+        const apiModeButton = document.querySelector('.header-controls button[aria-label="Toggle API Mode"]');
+        if (apiModeButton) {
+            apiModeButton.innerHTML = newMode === 'local' ? '🏠' : '☁️';
+            apiModeButton.title = `Current: ${newMode === 'local' ? 'Local' : 'Production'} API`;
+        }
+        
+        console.log('🔧 API mode toggled to:', newMode);
+        console.log('📍 New API URL:', this.apiUrl);
+        
+        // Test connection with new API
+        setTimeout(() => this.testApiConnection(), 1000);
     }
 
     // Detect API URL automatically
@@ -83,16 +124,96 @@ class DeepSeekChat {
     loadSettings() {
         const savedApiUrl = localStorage.getItem('deepseek_api_url');
         const savedStreaming = localStorage.getItem('deepseek_streaming');
+        const savedApiMode = localStorage.getItem('deepseek_api_mode');
         
+        // Set API mode (local/production)
+        if (savedApiMode === 'production') {
+            this.apiUrl = 'https://alexander-ai.onrender.com';
+            console.log('🔧 Using production API from settings');
+        } else if (savedApiMode === 'local') {
+            this.apiUrl = 'http://localhost:8000';
+            console.log('🔧 Using local API from settings');
+        } else {
+            // Auto-detect based on current location
+            this.apiUrl = this.detectApiUrl();
+            console.log('🔧 Auto-detected API URL');
+        }
+        
+        // Override with saved URL if exists
         if (savedApiUrl) {
             this.apiUrl = savedApiUrl;
-            this.elements.apiUrlInput.value = savedApiUrl;
+            console.log('🔧 Using saved API URL:', savedApiUrl);
         }
         
         if (savedStreaming !== null) {
             this.isStreaming = savedStreaming === 'true';
             this.elements.streamingInput.checked = this.isStreaming;
         }
+        
+        // Update settings UI
+        this.updateSettingsUI();
+    }
+    
+    // Update settings UI to reflect current state
+    updateSettingsUI() {
+        if (this.elements.apiUrlInput) {
+            this.elements.apiUrlInput.value = this.apiUrl;
+        }
+        
+        // Add API mode selector if not exists
+        this.addApiModeSelector();
+    }
+    
+    // Add API mode selector to settings
+    addApiModeSelector() {
+        const settingsBody = document.querySelector('.modal-body');
+        if (!settingsBody || document.getElementById('apiModeSelector')) return;
+        
+        const modeSelector = document.createElement('div');
+        modeSelector.className = 'setting-group';
+        modeSelector.id = 'apiModeSelector';
+        
+        const currentMode = this.apiUrl.includes('localhost') ? 'local' : 'production';
+        
+        modeSelector.innerHTML = `
+            <label>API Mode:</label>
+            <select id="apiModeSelect">
+                <option value="auto" ${!localStorage.getItem('deepseek_api_mode') ? 'selected' : ''}>Auto-detect</option>
+                <option value="local" ${currentMode === 'local' ? 'selected' : ''}>Local (localhost:8000)</option>
+                <option value="production" ${currentMode === 'production' ? 'selected' : ''}>Production (alexander-ai.onrender.com)</option>
+            </select>
+            <small>Выберите режим API или оставьте Auto-detect для автоматического определения</small>
+        `;
+        
+        // Insert after first setting group
+        const firstGroup = settingsBody.querySelector('.setting-group');
+        if (firstGroup) {
+            firstGroup.parentNode.insertBefore(modeSelector, firstGroup.nextSibling);
+        }
+        
+        // Add event listener
+        const select = modeSelector.querySelector('#apiModeSelect');
+        select.addEventListener('change', (e) => {
+            const mode = e.target.value;
+            if (mode === 'auto') {
+                localStorage.removeItem('deepseek_api_mode');
+                this.apiUrl = this.detectApiUrl();
+            } else if (mode === 'local') {
+                localStorage.setItem('deepseek_api_mode', 'local');
+                this.apiUrl = 'http://localhost:8000';
+            } else if (mode === 'production') {
+                localStorage.setItem('deepseek_api_mode', 'production');
+                this.apiUrl = 'https://alexander-ai.onrender.com';
+            }
+            
+            console.log('🔧 API mode changed to:', mode);
+            console.log('📍 New API URL:', this.apiUrl);
+            
+            // Update URL input
+            if (this.elements.apiUrlInput) {
+                this.elements.apiUrlInput.value = this.apiUrl;
+            }
+        });
     }
 
     // Save settings to localStorage
