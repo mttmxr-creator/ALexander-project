@@ -39,13 +39,16 @@ class JavaScriptBackend {
 
         try {
             console.log('💬 Обрабатываю сообщение:', userMessage);
+            console.log('🔑 Проверяю API ключ:', window.DEEPSEEK_API_KEY ? 'Найден' : 'НЕ НАЙДЕН');
             
             // Формируем полный промпт
             const fullPrompt = this.promptManager.getFullPrompt(userMessage);
+            console.log('📝 Полный промпт сформирован, длина:', fullPrompt.length);
             
-            // Здесь будет вызов DeepSeek API
-            // Пока что возвращаем заглушку
+            // Вызываем DeepSeek API
+            console.log('🚀 Вызываю DeepSeek API...');
             const response = await this.callDeepSeekAPI(fullPrompt);
+            console.log('✅ Ответ получен, длина:', response.length);
             
             return response;
             
@@ -58,6 +61,14 @@ class JavaScriptBackend {
     // Вызов DeepSeek API
     async callDeepSeekAPI(prompt) {
         try {
+            // Проверяем API ключ
+            if (!window.DEEPSEEK_API_KEY) {
+                throw new Error('API ключ не найден. Проверьте настройки.');
+            }
+            
+            console.log('🔑 API ключ найден:', window.DEEPSEEK_API_KEY.substring(0, 10) + '...');
+            console.log('📤 Отправляю запрос к DeepSeek API...');
+            
             const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
                 method: 'POST',
                 headers: {
