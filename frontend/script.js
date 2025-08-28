@@ -40,8 +40,8 @@ class DeepSeekChat {
         if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
             return 'http://localhost:8000';
         }
-        // For production, try to construct from current domain
-        return `${window.location.protocol}//${window.location.host}`;
+        // For production, use the deployed API URL
+        return 'https://alexander-ai.onrender.com';
     }
 
     // Load settings from localStorage
