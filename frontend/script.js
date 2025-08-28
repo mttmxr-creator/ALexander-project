@@ -53,10 +53,29 @@ class DeepSeekChat {
 
     // Detect API URL automatically
     detectApiUrl() {
-        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        const hostname = window.location.hostname;
+        const protocol = window.location.protocol;
+        const fullUrl = window.location.href;
+        
+        console.log('🔍 Detecting API URL:');
+        console.log('  Hostname:', hostname);
+        console.log('  Protocol:', protocol);
+        console.log('  Full URL:', fullUrl);
+        
+        // Check if we're running on GitHub Pages
+        if (hostname === 'mttmxr-creator.github.io') {
+            console.log('  ✅ GitHub Pages detected, using production API');
+            return 'https://alexander-ai.onrender.com';
+        }
+        
+        // Check if we're running locally
+        if (hostname === 'localhost' || hostname === '127.0.0.1') {
+            console.log('  ✅ Local development detected, using localhost API');
             return 'http://localhost:8000';
         }
-        // For production, use the deployed API URL
+        
+        // For any other domain, use production API
+        console.log('  ✅ Other domain detected, using production API');
         return 'https://alexander-ai.onrender.com';
     }
 
@@ -583,22 +602,50 @@ class DeepSeekChat {
         this.updateSendButton();
         this.scrollToBottom();
         
+        // Log current API URL for debugging
+        console.log('🚀 DeepSeek Chat initialized');
+        console.log('📍 Current API URL:', this.apiUrl);
+        console.log('🌐 Current location:', window.location.href);
+        
         // Test API connection on startup
         this.testApiConnection();
+        
+        // Show current API URL in interface for debugging
+        this.showApiUrlInfo();
     }
-
-    // Test API connection
-    async testApiConnection() {
-        try {
-            const response = await fetch(`${this.apiUrl}/health`);
-            if (response.ok) {
-                console.log('✅ API connection successful');
-            } else {
-                console.warn('⚠️ API connection failed');
+    
+    // Show API URL info in interface
+    showApiUrlInfo() {
+        // Add info about current API URL
+        const infoDiv = document.createElement('div');
+        infoDiv.style.cssText = `
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-family: monospace;
+            z-index: 1000;
+            max-width: 300px;
+            word-break: break-all;
+        `;
+        infoDiv.innerHTML = `
+            <strong>🔗 API URL:</strong><br>
+            ${this.apiUrl}<br>
+            <strong>🌐 Location:</strong><br>
+            ${window.location.hostname}
+        `;
+        document.body.appendChild(infoDiv);
+        
+        // Remove after 10 seconds
+        setTimeout(() => {
+            if (infoDiv.parentNode) {
+                infoDiv.parentNode.removeChild(infoDiv);
             }
-        } catch (error) {
-            console.warn('⚠️ API connection failed:', error);
-        }
+        }, 10000);
     }
 }
 
